@@ -97,8 +97,8 @@ DB $BB, $BB, $67, $63, $6E, $0E, $EC, $CC
 DB $DD, $DC, $99, $9F, $BB, $B9, $33, $3E
 
 ; $0134 - $013E: The title, in upper-case letters, followed by zeroes.
-DB "LIFE"
-DS 7 ; padding
+DB "FALSE"
+DS 6 ; padding
 
 ; $013F - $0142: The manufacturer code.
 DS 4
@@ -240,7 +240,7 @@ Init:
   xor a
   ldh [InitializedRandom], a
 
-  call InitBackground
+  call ClearNametable
   call ScreenOn
 
   ; Erase all initial sprites
@@ -428,22 +428,6 @@ ScreenOn:
 
 ; -----------------------------------------
 
-InitBackground:
-  call ClearNametable
-
-; Write "Conway's Life" at the top
-  ld hl, TitleText
-  ld de, SCREEN1+32*0+3
-  ld bc, 13
-  call memcpy
-  
-ClearNametable:
-; Initialize nametable
-  ld hl, SCREEN1
-  ld bc, 1024
-  ld e, " "
-  jp memset
-
 vblank:
   push af
   ld a, [retraces]
@@ -601,8 +585,12 @@ DoKeyRepeat:
 .did_repeat:
   ret
 
-TitleText:
-  db "Conway's Life"
+ClearNametable:
+; Initialize nametable
+  ld hl, SCREEN1
+  ld bc, 1024
+  ld e, " "
+  jp memset
 
 graphics:
 INCBIN "graphics.chr"
