@@ -778,14 +778,16 @@ OpAdd:
 
 OpSub:
   ; get first number
-  ld a, [hl+]
+  ld e, [hl]
+  inc hl
   ld d, [hl]
   inc hl
-  ; subtract second number
-  sub [hl]
+  ; subtract first number from second
+  ld a, [hl]
+  sub e
   ld [hl+], a
-  ld a, d
-  sbc [hl]
+  ld a, [hl]
+  sbc d
   ld [hl-], a
   ret
 
@@ -803,7 +805,7 @@ OpNegate:
   xor a
   sub [hl]
   ld [hl+], a
-  xor a
+  ld a, 0   ; can't use xor a, it clears carry
   sbc [hl]
   ld [hl-], a
   ret
@@ -820,11 +822,71 @@ OpReturn:
   ldh [programptr+0], a
   ld a, [hl]
   ldh [programptr+1], a
+  ; a high byte of 255 means it's a special return
+  ; for "#" or other loops.
+  cp 255
+  jr z, SpecialReturn
 
   ld a, l
   ldh [rsp], a
   pop hl
   ret
+
+SpecialReturn:
+; Return stack state during special returns:
+; ??? ff-01 CC-CC BB-BB RR-RR
+; 0   1  2  3  4  5  6  7  8
+; C(condition), B(body), R(actual return address)
+
+  ; Swap to the other type of special return
+  dec hl      ; move back to low byte
+  ld a, [hl]  ; get it
+  ld b, a     ; save it to check against later
+  xor 1       ; toggle to the other type
+  ld [hl], a  ; write it back
+
+  pop hl      ; restore stack pointer
+  ; Don't save changed RSP
+  ld a, b
+  or a
+  jr z, SpecialReturnCondition
+
+  ; $ff01 = run body
+SpecialReturnRun:
+  ; Get run address from the return stack
+  ld d, rstack >> 8
+  ldh a, [rsp]
+  add 4
+  ld e, a
+
+PushSpecialReturn:
+  ; Jump to the loop part
+  ld a, [de]
+  ldh [programptr+1], a
+  dec e
+  ld a, [de]
+  ldh [programptr+0], a
+  ret
+
+  ; $ff00 = check condition
+SpecialReturnCondition:
+  ld a, [hl+]
+  or [hl]
+  inc hl
+  jr z, .LoopAbort
+
+  ld d, rstack >> 8
+  ldh a, [rsp]
+  add 6
+  ld e, a
+  jp PushSpecialReturn
+
+.LoopAbort:
+  ; Return for real
+  ldh a, [rsp]
+  add 6
+  ldh [rsp], a
+  jp OpReturn
 
 OpCall:
   ; Push the current program counter
@@ -881,7 +943,6 @@ OpSwap:
 
 OpStartLambda:
   ; push address of first byte in lambda
-  dec hl
   dec hl
   ldh a, [programptr+1]
   ld [hl-], a
@@ -1019,9 +1080,7 @@ OpEqual:
   ld a, [hl+]
   or a, [hl]
   dec hl
-  jr nz, True
-  jr z, False
-  ret
+  jr nz, False
 
 True:
   ld [hl], 255
@@ -1377,6 +1436,50 @@ OpOver:
   ret
 
 OpWhile:
+  ; temp = body low, body high, cond low, cond high
+  ld de, temp
+  ld bc, 4
+  call memcpy
+  ; HL has now popped the two words on the stack
+
+  push hl
+  ld h, rstack >> 8
+  ldh a, [rsp]
+  ld l, a
+
+  ; Push real return address
+  ldh a, [programptr+1]
+  ld [hl-], a
+  ldh a, [programptr+0]
+  ld [hl-], a
+
+  ; Copy the body
+  ldh a, [temp+1]
+  ld [hl-], a
+  ldh a, [temp+0]
+  ld [hl-], a
+
+  ; Copy the condition address
+  ldh a, [temp+3]
+  ld [hl-], a
+  ldh a, [temp+2]
+  ld [hl-], a
+
+  ; Copy the special marker
+  ld a, 255
+  ld [hl-], a
+  xor a
+  ld [hl-], a
+
+  ; Save new return pointer
+  ld a, l
+  ldh [rsp], a
+  pop hl
+
+  ldh a, [temp+3]
+  ldh [programptr+1], a
+  ldh a, [temp+2]
+  ldh [programptr+0], a
   ret
 
 OpPutString:
@@ -1426,6 +1529,15 @@ PutOneCharacter:
   ld e, a
   inc a            ; update print X
   ldh [PrintX], a
+  cp 20
+  jr nz, .no_wrap
+  xor a
+  ldh [PrintX], a
+  ldh a, [PrintY]
+  inc a
+  ldh [PrintY], a
+.no_wrap:
+
   add hl, de
   ; Add screen base
   ld de, SCREEN1
@@ -1497,9 +1609,13 @@ RunOneInstruction:
   ret
 
 SampleProgram:
+  db "50 1 - .",0
+;  db "100 100 = . ", 0
+;  db "1[$10<][$.' , 1+]# \"done\"",0
+;  db "['c,1]['b,]# \"done\"",0
+  db "'a[$ 123 =~][$,1+]#%",0
 ;  db "  'a 1+ , 1. ",34,"test",34,0
 ;  db "1 2 3 4 +++ .  ", 0
 ;  db "['a,]$$!!!",34,"test",34,0
 ;  db "a.", 0
 ;  db "25 5 / .",0
-  db "0[1.]? 1[2.]?",0
