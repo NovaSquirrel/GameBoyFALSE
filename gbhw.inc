@@ -238,3 +238,11 @@ lda: MACRO
     ld a, \2
     ld \1, a
 ENDM
+
+bge: MACRO
+    jr nc, \1
+ENDM
+
+blt: MACRO
+    jr c, \1
+ENDM

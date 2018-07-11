@@ -815,35 +815,40 @@ OpReturn:
   ldh a, [rsp]
   ld l, a
 
+  inc hl
   ld a, [hl+]
   ldh [programptr+0], a
-  ld a, [hl+]
+  ld a, [hl]
   ldh [programptr+1], a
 
-  inc l
-  inc l
   ld a, l
   ldh [rsp], a
   pop hl
   ret
 
 OpCall:
+  ; Push the current program counter
   push hl
   ; load return stack
   ld h, rstack >> 8
   ldh a, [rsp]
   ld l, a
 
-  dec l
-  dec l
-  ldh a, [programptr+0]
-  ld [hl-], a
   ldh a, [programptr+1]
   ld [hl-], a
+  ldh a, [programptr+0]
+  ld [hl-], a
 
+  ; Update return stack pointer
   ld a, l
   ldh [rsp], a
-  pop hl  
+  pop hl
+
+  ; Read the new address
+  ld a, [hl+]
+  ldh [programptr+0],a
+  ld a, [hl+]
+  ldh [programptr+1],a
   ret
 
 OpSwap:
@@ -956,8 +961,54 @@ OpDiscard:
   ret
 
 OpGreater:
-  ret
+  ; a b -- a>b
+  ; get number 1
+  ld c, [hl]
+  inc hl
+  ld b, [hl]
+  inc hl
+  ; get number 2
+  ld e, [hl]
+  inc hl
+  ld d, [hl]
+  dec hl
+  ; HL is positioned to write the result
+  ld a, d
+  cp b
+  blt False   ; <
+  jr z, .same ; =
+  jr True     ; >
+.same:
+  ld a, e
+  cp c
+  blt False   ; <
+  jr z, False ; =
+  jr True     ; >
+
 OpLess:
+  ; a b -- a<b
+  ; get number 1
+  ld c, [hl]
+  inc hl
+  ld b, [hl]
+  inc hl
+  ; get number 2
+  ld e, [hl]
+  inc hl
+  ld d, [hl]
+  dec hl
+  ; HL is positioned to write the result
+  ld a, d
+  cp b
+  jr z, .same ; =
+  bge False   ; >
+  jr True     ; <
+.same:
+  ld a, e
+  cp c
+  jr z, False ; =
+  bge False   ; >
+  jr True     ; <
   ret
 
 OpEqual:
@@ -1327,4 +1378,6 @@ RunOneInstruction:
 
 SampleProgram:
 ;  db "  'a 1+ , 1. ",34,"test",34,0
-  db "1 2 3 4 +++ .  ", 0
+;  db "1 2 3 4 +++ .  ", 0
+  db "['a,]$$!!!",34,"test",34,0
+;  db "a.", 0
