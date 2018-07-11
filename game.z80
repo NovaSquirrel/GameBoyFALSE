@@ -1328,11 +1328,55 @@ OpPutDecimal:
   inc hl
   ld h,[hl]
   ld l,a
+  ld de, temp
+  push de
   call ConvertNumberHL
+  pop de
   pop hl
+
+  ; Decide how many digits to print based on how many leading zeros
+  ld a, [de]
+  cp "0"
+  jr nz, .putfive
+  inc de
+
+  ld a, [de]
+  cp "0"
+  jr nz, .putfour
+  inc de
+
+  ld a, [de]
+  cp "0"
+  jr nz, .putthree
+  inc de
+
+  ld a, [de]
+  cp "0"
+  jr nz, .puttwo
+  inc de
+  jr .putone
+
+.putfive:
+  call .print_digit
+.putfour:
+  call .print_digit
+.putthree:
+  call .print_digit
+.puttwo:
+  call .print_digit
+.putone:
+  call .print_digit
 
   inc hl
   inc hl
+  ret
+
+.print_digit:
+  ld a, [de]
+  push de
+  call PutOneCharacter
+  pop de
+  inc de
   ret
 
 ; https://stackoverflow.com/questions/38666119/converting-an-unsigned-16-bit-integer-from-hl-into-text-using-my-own-non-ascii-c
@@ -1367,10 +1411,12 @@ ConvertNumberHL::
     add hl, bc;
     pop bc;
 
-    ; character is in A
-    push bc
-    call PutOneCharacter
-    pop bc
+    ld [de], a
+    inc de
+;    ; character is in A
+;    push bc
+;    call PutOneCharacter
+;    pop bc
     ret
 .carry;
     dec bc;
@@ -1597,15 +1643,12 @@ RunOneInstruction:
   ret
 
 SampleProgram:
+  db "1 . 10 . 100 . 1000 . 10000 .",0
 ;  db "1 2 3 @ . . .", 0
-
-  db "50 9[1-$][\\$@$@$@$@\\/*=[1-$$[%\\1-$@]?0=[\\$.' ,\\]?]?]#", 0
-;  db "100 100 = . ", 0
+;  db "50 9[1-$][\\$@$@$@$@\\/*=[1-$$[%\\1-$@]?0=[\\$.' ,\\]?]?]#", 0
 ;  db "1[$10<][$.' , 1+]# \"done\"",0
 ;  db "['c,1]['b,]# \"done\"",0
-  db "'a[$ 123 =~][$,1+]#%",0
+;  db "'a[$ 123 =~][$,1+]#%",0
 ;  db "  'a 1+ , 1. ",34,"test",34,0
 ;  db "1 2 3 4 +++ .  ", 0
 ;  db "['a,]$$!!!",34,"test",34,0
-;  db "a.", 0
-;  db "25 5 / .",0
