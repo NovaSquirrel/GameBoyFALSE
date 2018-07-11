@@ -866,6 +866,7 @@ OpSwap:
   ld [de], a
 
   inc hl
+  inc de
 
   ; swap high bytes
   ld a, [hl]
@@ -949,7 +950,9 @@ OpIfElse:
   ret
 
 OpIf:
-  ; pop a byte, is it nonzero?
+  call OpSwap
+
+  ; pop a word, is it nonzero?
   ld a, [hl+]
   or [hl]
   inc hl ; doesn't change flags
@@ -1498,4 +1501,5 @@ SampleProgram:
 ;  db "1 2 3 4 +++ .  ", 0
 ;  db "['a,]$$!!!",34,"test",34,0
 ;  db "a.", 0
-  db "25 5 / .",0
+;  db "25 5 / .",0
+  db "0[1.]? 1[2.]?",0
